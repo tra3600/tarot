@@ -1,0 +1,13 @@
+Explications :
+Définition des cartes : Chaque carte du tarot de Marseille est définie avec un nom et une interprétation générale.
+Choix du thème : L'utilisateur choisit un thème parmi les options proposées.
+Tirage des cartes : Une carte est tirée de manière aléatoire à chaque exécution du programme.
+Interprétation : Une interprétation de la carte tirée est affichée en fonction du thème choisi.
+Simulation de paiement : Avant de tirer la carte, le programme simule une demande de paiement.
+Pour Compiler et Exécuter :
+Assurez-vous que vous avez un compilateur C++ installé, comme g++, puis compilez le programme avec :
+
+g++ -o tarot tarot.cpp
+./tarot
+
+Ce code est un point de départ que vous pouvez étendre pour ajouter plus de fonctionnalités, comme une interface graphique, une base de données pour stocker les interprétations détaillées, et une intégration avec un véritable système de paiement.
