@@ -3,7 +3,8 @@ import unittest
 
 from tarot_bot import config
 from tarot_bot.cards import DECK, THEMES
-from tarot_bot.reading import FORMULAS, POSITIONS, draw, render
+from tarot_bot.minors import MINORS
+from tarot_bot.reading import FORMULAS, FULL_DECK, POSITIONS, draw, render
 from tarot_bot.storage import Storage
 from tarot_bot.telegram_bot import Bot
 
@@ -27,6 +28,25 @@ class DeckTests(unittest.TestCase):
         for c in DECK:
             self.assertEqual(set(c.themes), set(THEMES), c.name)
             self.assertTrue(all(c.themes.values()) and c.shadow and c.keywords)
+
+
+class MinorTests(unittest.TestCase):
+    def test_56_minors(self):
+        self.assertEqual(len(MINORS), 56)
+        self.assertEqual(len(FULL_DECK), 78)
+        self.assertEqual(len({c.name for c in FULL_DECK}), 78)
+        self.assertEqual(len({c.number for c in FULL_DECK}), 78)
+        for c in MINORS:
+            self.assertEqual(set(c.themes), set(THEMES), c.name)
+            self.assertTrue(all(c.themes.values()) and c.shadow and c.keywords and c.suit)
+        self.assertEqual({c.suit for c in MINORS}, {"Bâtons", "Coupes", "Épées", "Deniers"})
+
+    def test_minors_can_be_drawn(self):
+        seen = set()
+        for _ in range(200):
+            seen |= {d.card.suit for d in draw("amour", "complet").cards}
+        self.assertIn("Coupes", seen)
+        self.assertTrue(all(not d.card.suit for d in draw("amour", "complet", full_deck=False).cards))
 
 
 class DrawTests(unittest.TestCase):

@@ -6,6 +6,9 @@ import secrets
 from dataclasses import dataclass
 
 from .cards import DECK, THEMES, Card
+from .minors import MINORS
+
+FULL_DECK: tuple[Card, ...] = DECK + MINORS
 
 DISCLAIMER = (
     "Ce tirage est proposé à titre de divertissement et de réflexion personnelle. "
@@ -80,15 +83,17 @@ class Reading:
 
 
 def draw(theme: str, formula: str, name: str = "", question: str = "",
-         rng: random.Random | None = None) -> Reading:
-    """Tire les cartes sans doublon. Par défaut, source aléatoire cryptographique."""
+         rng: random.Random | None = None, full_deck: bool = True) -> Reading:
+    """Tire les cartes sans doublon (78 cartes, ou 22 arcanes majeurs si full_deck=False).
+
+    Par défaut, source aléatoire cryptographique."""
     if theme not in THEMES:
         raise ValueError(f"Thème inconnu : {theme!r} (choix : {', '.join(THEMES)})")
     if formula not in FORMULAS:
         raise ValueError(f"Formule inconnue : {formula!r} (choix : {', '.join(FORMULAS)})")
     rng = rng or secrets.SystemRandom()
     indices = FORMULAS[formula][1]
-    picked = rng.sample(DECK, len(indices))
+    picked = rng.sample(FULL_DECK if full_deck else DECK, len(indices))
     drawn = tuple(
         DrawnCard(POSITIONS[theme][i], card, rng.random() < REVERSED_PROBABILITY)
         for i, card in zip(indices, picked)

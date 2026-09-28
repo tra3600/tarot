@@ -1,6 +1,6 @@
 # Tarot de Marseille — bot de tirage payant
 
-Bot qui tire les 22 arcanes majeurs du Tarot de Marseille et livre une interprétation **personnalisée** selon le thème
+Bot qui tire les 78 lames du Tarot de Marseille (22 arcanes majeurs + 56 mineurs) et livre une interprétation **personnalisée** selon le thème
 (Amour, Travail, Argent, Famille, Vie personnelle, Futur), la formule choisie, le prénom et la question du client.
 
 - Tirage sans doublon, aléatoire cryptographique, chaque carte pouvant sortir à l'envers.
@@ -25,6 +25,6 @@ Prix (centimes) réglables : `PRICE_FLASH_CENTS`, `PRICE_TRIO_CENTS`, `PRICE_COM
 ## À faire avant la mise en ligne
 - Mentions légales / CGV / droit de rétractation, RGPD (les questions des clients sont stockées dans SQLite).
 - Le contenu est fourni à titre de divertissement (avertissement ajouté à chaque tirage).
-- Étendre le jeu aux 56 arcanes mineurs et enrichir les textes.
+- Enrichir les textes (les mineurs combinent une phrase par rang et une par couleur).
 
 `legacy/` : ancienne version C++ (non fonctionnelle, conservée pour mémoire).

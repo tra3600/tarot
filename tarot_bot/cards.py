@@ -21,6 +21,7 @@ class Card:
     shadow: str  # sens de la carte à l'envers
     energy: int  # +1 porteuse, 0 neutre, -1 exigeante (à l'endroit)
     themes: dict[str, str] = field(default_factory=dict)
+    suit: str = ""  # vide pour les arcanes majeurs
 
 
 def _c(number, name, keywords, shadow, energy, amour, travail, argent, famille, perso, futur):
