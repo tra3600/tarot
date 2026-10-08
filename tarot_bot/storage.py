@@ -15,14 +15,21 @@ class Storage:
             name TEXT NOT NULL DEFAULT '', question TEXT NOT NULL DEFAULT '',
             amount_cents INTEGER NOT NULL, currency TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending',
-            charge_id TEXT, result TEXT, created_at REAL NOT NULL)""")
+            charge_id TEXT, result TEXT, created_at REAL NOT NULL,
+            cgv_version TEXT, cgv_accepted_at REAL)""")
+        cols = {r["name"] for r in self.db.execute("PRAGMA table_info(orders)")}
+        for col, typ in (("cgv_version", "TEXT"), ("cgv_accepted_at", "REAL")):  # bases créées avant les CGV
+            if col not in cols:
+                self.db.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
         self.db.commit()
 
-    def create_order(self, user_id, theme, formula, name, question, amount_cents, currency) -> int:
+    def create_order(self, user_id, theme, formula, name, question, amount_cents, currency,
+                     cgv_version=None) -> int:
         cur = self.db.execute(
-            "INSERT INTO orders (user_id, theme, formula, name, question, amount_cents, currency, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?)",
-            (user_id, theme, formula, name, question, amount_cents, currency, time.time()))
+            "INSERT INTO orders (user_id, theme, formula, name, question, amount_cents, currency, created_at,"
+            " cgv_version, cgv_accepted_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (user_id, theme, formula, name, question, amount_cents, currency, time.time(),
+             cgv_version, time.time() if cgv_version else None))
         self.db.commit()
         return cur.lastrowid
 

@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from tarot_bot import config
+from tarot_bot import config, legal
 from tarot_bot.cards import DECK, THEMES
 from tarot_bot.minors import MINORS
 from tarot_bot.reading import FORMULAS, FULL_DECK, POSITIONS, draw, render
@@ -92,7 +92,8 @@ class BotTests(unittest.TestCase):
     def flow(self, demo):
         api, db = FakeApi(), Storage()
         bot = Bot(api, db, demo=demo)
-        for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:trio"), msg(1, "Va-t-il revenir ?")):
+        for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:trio"), msg(1, "Va-t-il revenir ?"),
+                  cb(1, "cgv:ok")):
             bot.handle(u)
         return api, db, bot
 
@@ -112,6 +113,35 @@ class BotTests(unittest.TestCase):
         bot.handle(msg(1, successful_payment=pay))
         bot.handle(msg(1, successful_payment=pay))  # rejeu
         self.assertEqual(sum("Synthèse" in t for t in api.sent()), 1)
+
+    def test_cgv_required_before_payment(self):
+        api, db = FakeApi(), Storage()
+        bot = Bot(api, db, demo=False)
+        for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:trio"), msg(1, "Question ?")):
+            bot.handle(u)
+        self.assertFalse(any(m == "sendInvoice" for m, _ in api.calls))
+        self.assertIsNone(db.get_order(1))
+        bot.handle(cb(1, "cgv:no"))  # refus : aucune commande
+        bot.handle(cb(1, "cgv:ok"))  # session effacée : on repart du début, toujours pas de facture
+        self.assertFalse(any(m == "sendInvoice" for m, _ in api.calls))
+        self.assertIsNone(db.get_order(1))
+
+    def test_cgv_consent_recorded_and_text(self):
+        _, db, _ = self.flow(demo=False)
+        order = db.get_order(1)
+        self.assertEqual(order["cgv_version"], legal.CGV_VERSION)
+        self.assertIsNotNone(order["cgv_accepted_at"])
+        text = legal.cgv_text()
+        self.assertIn("rétractation", text)
+        self.assertIn("L221-28", text)
+
+    def test_old_orders_without_consent_rejected(self):
+        api, db = FakeApi(), Storage()
+        oid = db.create_order(1, "amour", "flash", "A", "", config.PRICES_CENTS["flash"], config.CURRENCY)
+        Bot(api, db, demo=False).handle({"pre_checkout_query": {
+            "id": "1", "invoice_payload": str(oid), "from": {"id": 1},
+            "total_amount": config.PRICES_CENTS["flash"], "currency": config.CURRENCY}})
+        self.assertFalse(api.calls[-1][1]["ok"])
 
     def test_wrong_amount_or_user_refused(self):
         api, db, bot = self.flow(demo=False)

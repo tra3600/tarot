@@ -12,3 +12,10 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 # Jeton fourni par BotFather (Stripe, etc.). Vide = mode démo sans vrai paiement.
 PROVIDER_TOKEN = os.getenv("PAYMENT_PROVIDER_TOKEN", "")
 DB_PATH = os.getenv("TAROT_DB", "tarot.db")
+
+# Identité du vendeur, affichée dans les CGV (à renseigner avant la mise en ligne).
+BUSINESS_NAME = os.getenv("BUSINESS_NAME", "[NOM DU VENDEUR]")
+BUSINESS_SIRET = os.getenv("BUSINESS_SIRET", "[SIRET]")
+BUSINESS_ADDRESS = os.getenv("BUSINESS_ADDRESS", "[ADRESSE]")
+BUSINESS_EMAIL = os.getenv("BUSINESS_EMAIL", "[EMAIL DE CONTACT]")
+MEDIATOR = os.getenv("MEDIATOR", "[NOM ET COORDONNÉES DU MÉDIATEUR DE LA CONSOMMATION]")
