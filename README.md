@@ -41,6 +41,18 @@ Avec des paiements réels, le bot refuse de démarrer tant que `BUSINESS_NAME`, 
 payées. Les commandes payées restent, anonymisées (identifiant Telegram remplacé par 0) : montant, date, référence de paiement et
 preuve d'acceptation des CGV sont conservés pour la comptabilité. Ce comportement est annoncé dans les CGV (§7).
 
+### Paiement en Étoiles Telegram (Stars)
+Telegram demande les Étoiles (devise `XTR`) pour les services numériques, et elles ne nécessitent ni fournisseur ni jeton de paiement :
+
+```bash
+export PAYMENT_MODE=stars
+export BUSINESS_NAME=... BUSINESS_SIRET=... BUSINESS_ADDRESS=... BUSINESS_EMAIL=... MEDIATOR=...
+python -m tarot_bot.telegram_bot
+```
+Prix par défaut : 150 / 300 / 500 Étoiles (`PRICE_FLASH_STARS`, `PRICE_TRIO_STARS`, `PRICE_COMPLET_STARS`). Les Étoiles reçues
+se retirent via Fragment (TON) selon les conditions de Telegram ; vérifiez leur valeur en euros et les règles en vigueur.
+Modes : `demo` (simulé), `stars`, `provider` (fournisseur BotFather + `PAYMENT_PROVIDER_TOKEN`).
+
 Prix (centimes) réglables : `PRICE_FLASH_CENTS`, `PRICE_TRIO_CENTS`, `PRICE_COMPLET_CENTS`, `CURRENCY`, `TAROT_DB`.
 
 ## À faire avant la mise en ligne

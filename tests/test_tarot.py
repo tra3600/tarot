@@ -91,7 +91,7 @@ def cb(user, data):
 class BotTests(unittest.TestCase):
     def flow(self, demo):
         api, db = FakeApi(), Storage()
-        bot = Bot(api, db, demo=demo)
+        bot = Bot(api, db, "demo" if demo else "provider")
         for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:trio"), msg(1, "Va-t-il revenir ?"),
                   cb(1, "cgv:ok")):
             bot.handle(u)
@@ -116,7 +116,7 @@ class BotTests(unittest.TestCase):
 
     def test_cgv_required_before_payment(self):
         api, db = FakeApi(), Storage()
-        bot = Bot(api, db, demo=False)
+        bot = Bot(api, db, "provider")
         for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:trio"), msg(1, "Question ?")):
             bot.handle(u)
         self.assertFalse(any(m == "sendInvoice" for m, _ in api.calls))
@@ -138,7 +138,7 @@ class BotTests(unittest.TestCase):
     def test_old_orders_without_consent_rejected(self):
         api, db = FakeApi(), Storage()
         oid = db.create_order(1, "amour", "flash", "A", "", config.PRICES_CENTS["flash"], config.CURRENCY)
-        Bot(api, db, demo=False).handle({"pre_checkout_query": {
+        Bot(api, db, "provider").handle({"pre_checkout_query": {
             "id": "1", "invoice_payload": str(oid), "from": {"id": 1},
             "total_amount": config.PRICES_CENTS["flash"], "currency": config.CURRENCY}})
         self.assertFalse(api.calls[-1][1]["ok"])
@@ -173,9 +173,50 @@ class BotTests(unittest.TestCase):
                 return super().call(method, **params)
 
         api = StaleAckApi()
-        bot = Bot(api, Storage(), demo=True)
+        bot = Bot(api, Storage(), "demo")
         bot.handle(cb(1, "t:amour"))
         self.assertTrue(any("Choisissez votre formule" in t for t in api.sent()))
+
+    def stars_flow(self):
+        api, db = FakeApi(), Storage()
+        bot = Bot(api, db, "stars")
+        for u in (msg(1, "/start"), cb(1, "t:travail"), cb(1, "f:flash"), msg(1, "Promotion ?"), cb(1, "cgv:ok")):
+            bot.handle(u)
+        return api, db, bot
+
+    def test_stars_invoice_has_no_provider_token(self):
+        api, db, bot = self.stars_flow()
+        invoice = [p for m, p in api.calls if m == "sendInvoice"][0]
+        self.assertEqual(invoice["currency"], "XTR")
+        self.assertNotIn("provider_token", invoice)
+        self.assertEqual(invoice["prices"][0]["amount"], config.PRICES_STARS["flash"])
+        order = db.get_order(1)
+        self.assertEqual((order["currency"], order["amount_cents"], order["status"]),
+                         ("XTR", config.PRICES_STARS["flash"], "pending"))
+
+    def test_stars_payment_delivers_once_and_checks_amount(self):
+        api, db, bot = self.stars_flow()
+        ok = {"id": "9", "invoice_payload": "1", "from": {"id": 1}, "currency": "XTR",
+              "total_amount": config.PRICES_STARS["flash"]}
+        bot.handle({"pre_checkout_query": ok})
+        self.assertTrue(api.calls[-1][1]["ok"])
+        bot.handle({"pre_checkout_query": dict(ok, total_amount=1)})  # mauvais montant
+        self.assertFalse(api.calls[-1][1]["ok"])
+        bot.handle({"pre_checkout_query": dict(ok, currency="EUR")})  # mauvaise devise
+        self.assertFalse(api.calls[-1][1]["ok"])
+        pay = {"invoice_payload": "1", "total_amount": config.PRICES_STARS["flash"], "currency": "XTR",
+               "telegram_payment_charge_id": "stars-1"}
+        bot.handle(msg(1, successful_payment=dict(pay, currency="EUR")))  # devise incohérente : refusé
+        self.assertFalse(any("Synthèse" in t for t in api.sent()))
+        bot.handle(msg(1, successful_payment=pay))
+        bot.handle(msg(1, successful_payment=pay))
+        self.assertEqual(sum("Synthèse" in t for t in api.sent()), 1)
+        self.assertEqual(db.get_order(1)["charge_id"], "stars-1")
+
+    def test_stars_prices_shown_in_cgv_and_buttons(self):
+        self.assertIn("Étoiles Telegram", legal.cgv_text("stars"))
+        self.assertIn(str(config.PRICES_STARS["trio"]), config.format_price("trio", "stars"))
+        self.assertIn("EUR", config.format_price("trio", "provider"))
 
     def test_wrong_amount_or_user_refused(self):
         api, db, bot = self.flow(demo=False)

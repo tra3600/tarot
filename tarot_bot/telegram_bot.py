@@ -1,8 +1,10 @@
 """Bot Telegram payant (sans dépendance externe : API HTTP + paiements Telegram).
 
 Flux : /start -> thème -> formule -> question -> facture -> paiement -> tirage livré.
-Configurer TELEGRAM_BOT_TOKEN et PAYMENT_PROVIDER_TOKEN (BotFather > Payments).
-Sans PAYMENT_PROVIDER_TOKEN, le bot tourne en mode démo (paiement simulé, à ne pas utiliser en production).
+Modes de paiement (PAYMENT_MODE) :
+  stars    : Étoiles Telegram (devise XTR, aucun jeton de paiement) - requis pour les services numériques ;
+  provider : fournisseur BotFather (PAYMENT_PROVIDER_TOKEN) ;
+  demo     : paiement simulé, à ne pas utiliser en production (mode par défaut sans jeton de paiement).
 """
 from __future__ import annotations
 
@@ -43,8 +45,8 @@ def _keyboard(rows):
 
 
 class Bot:
-    def __init__(self, api, storage: Storage, demo: bool):
-        self.api, self.db, self.demo = api, storage, demo
+    def __init__(self, api, storage: Storage, mode: str = "demo"):
+        self.api, self.db, self.mode = api, storage, mode
         self.sessions: dict[int, dict] = {}  # user_id -> {step, theme, formula, name}
 
     # -- envoi ---------------------------------------------------------
@@ -75,7 +77,7 @@ class Bot:
         if text.startswith(("/start", "/tirage")):
             return self.show_themes(chat_id, user_id)
         if text.startswith("/cgv"):
-            return self.send(chat_id, legal.cgv_text())
+            return self.send(chat_id, legal.cgv_text(self.mode))
         if text.startswith("/supprimer"):
             return self.send(chat_id, "Cela efface votre prénom, vos questions et vos tirages de nos données. "
                              "Seules les informations de paiement (montant, date, référence) sont conservées "
@@ -90,7 +92,7 @@ class Bot:
             question = "" if text.lower() in ("non", "-", "aucune") else text[:MAX_QUESTION]
             name = (m["from"].get("first_name") or "")[:40]
             s.update(step="cgv", name=name, question=question)
-            return self.send(chat_id, legal.consent_prompt(config.PRICES_CENTS[s["formula"]]),
+            return self.send(chat_id, legal.consent_prompt(s["formula"], self.mode),
                              reply_markup=_keyboard([[("✅ J'accepte les CGV et je paie", "cgv:ok")],
                                                      [("📄 Lire les CGV", "cgv:read")],
                                                      [("❌ Annuler", "cgv:no")]]))
@@ -104,7 +106,7 @@ class Bot:
             pass
         if data.startswith("t:") and data[2:] in THEMES:
             self.sessions[user_id] = {"step": "formula", "theme": data[2:]}
-            rows = [[(f"{lbl} — {config.PRICES_CENTS[k] / 100:.2f} {config.CURRENCY}", f"f:{k}")]
+            rows = [[(f"{lbl} — {config.format_price(k, self.mode)}", f"f:{k}")]
                     for k, (lbl, _) in FORMULAS.items()]
             self.send(chat_id, f"Thème : {THEMES[data[2:]]}. Choisissez votre formule :",
                       reply_markup=_keyboard(rows))
@@ -118,7 +120,7 @@ class Bot:
         elif data.startswith("cgv:"):
             s = self.sessions.get(user_id)
             if data == "cgv:read":
-                self.send(chat_id, legal.cgv_text())
+                self.send(chat_id, legal.cgv_text(self.mode))
             elif not s or s.get("step") != "cgv":
                 self.show_themes(chat_id, user_id)
             elif data == "cgv:ok":
@@ -135,18 +137,19 @@ class Bot:
 
     # -- paiement ---------------------------------------------------------
     def checkout(self, chat_id, user_id, theme, formula, name, question):
-        amount = config.PRICES_CENTS[formula]
-        order_id = self.db.create_order(user_id, theme, formula, name, question, amount, config.CURRENCY,
+        amount, currency = config.amount(formula, self.mode), config.currency(self.mode)
+        order_id = self.db.create_order(user_id, theme, formula, name, question, amount, currency,
                                         cgv_version=legal.CGV_VERSION)
         self.sessions.pop(user_id, None)
-        if self.demo:
+        if self.mode == "demo":
             self.send(chat_id, "⚠️ Mode démo : paiement simulé.")
             return self.deliver(chat_id, order_id, "demo")
         label = f"{FORMULAS[formula][0]} — {THEMES[theme]}"
-        self.api.call("sendInvoice", chat_id=chat_id, title="Tirage de Tarot de Marseille",
-                      description=label, payload=str(order_id),
-                      provider_token=config.PROVIDER_TOKEN, currency=config.CURRENCY,
-                      prices=[{"label": label, "amount": amount}])
+        invoice = dict(chat_id=chat_id, title="Tirage de Tarot de Marseille", description=label,
+                       payload=str(order_id), currency=currency, prices=[{"label": label, "amount": amount}])
+        if self.mode == "provider":  # en Étoiles (XTR), pas de jeton de paiement
+            invoice["provider_token"] = config.PROVIDER_TOKEN
+        self.api.call("sendInvoice", **invoice)
 
     def on_pre_checkout(self, q):
         order = self.db.get_order(int(q["invoice_payload"])) if q["invoice_payload"].isdigit() else None
@@ -158,7 +161,8 @@ class Bot:
     def on_paid(self, chat_id, user_id, pay):
         payload = pay.get("invoice_payload", "")
         order = self.db.get_order(int(payload)) if payload.isdigit() else None
-        if not order or order["user_id"] != user_id or order["amount_cents"] != pay["total_amount"]:
+        if not order or order["user_id"] != user_id or order["amount_cents"] != pay["total_amount"] \
+                or order["currency"] != pay.get("currency", order["currency"]):
             log.error("Paiement non rapproché: %s", pay)
             return self.send(chat_id, "Paiement reçu mais commande introuvable : contactez le support.")
         self.deliver(chat_id, order["id"], pay.get("telegram_payment_charge_id", ""))
@@ -175,7 +179,7 @@ class Bot:
     # -- boucle ----------------------------------------------------------
     def run(self):
         offset = None
-        log.info("Bot démarré (%s)", "mode démo" if self.demo else "paiements réels")
+        log.info("Bot démarré (%s)", {"demo": "mode démo", "stars": "paiements en Étoiles", "provider": "paiements via fournisseur"}[self.mode])
         while True:
             try:
                 params = {"timeout": 50, "allowed_updates": ["message", "callback_query", "pre_checkout_query"]}
@@ -196,11 +200,13 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if not config.BOT_TOKEN:
         raise SystemExit("Définissez TELEGRAM_BOT_TOKEN (voir README).")
-    demo = not config.PROVIDER_TOKEN
-    if not demo and not legal.is_configured():
+    mode = config.payment_mode()
+    if mode == "provider" and not config.PROVIDER_TOKEN:
+        raise SystemExit("PAYMENT_MODE=provider demande PAYMENT_PROVIDER_TOKEN (BotFather > Payments).")
+    if mode != "demo" and not legal.is_configured():
         raise SystemExit("Renseignez BUSINESS_NAME, BUSINESS_SIRET, BUSINESS_ADDRESS, BUSINESS_EMAIL et MEDIATOR "
                          "(mentions obligatoires des CGV) avant d'activer les paiements réels.")
-    Bot(Api(config.BOT_TOKEN), Storage(config.DB_PATH), demo=demo).run()
+    Bot(Api(config.BOT_TOKEN), Storage(config.DB_PATH), mode).run()
 
 
 if __name__ == "__main__":
