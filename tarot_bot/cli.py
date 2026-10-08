@@ -19,14 +19,14 @@ def _choose(title: str, options: dict[str, str]) -> str:
 
 
 def main() -> None:
+    mode = config.payment_mode()
     print("🔮 Tarot de Marseille — tirage personnalisé\n")
     name = input("Votre prénom : ").strip()
     theme = _choose("\nChoisissez un thème :", THEMES)
     formula = _choose("\nChoisissez une formule :", {
-        k: f"{v[0]} — {config.PRICES_CENTS[k] / 100:.2f} {config.CURRENCY}" for k, v in FORMULAS.items()})
+        k: f"{v[0]} — {config.format_price(k, mode)}" for k, v in FORMULAS.items()})
     question = input("\nVotre question (facultatif) : ").strip()
-    price = config.PRICES_CENTS[formula] / 100
-    if input(f"\n[Paiement simulé] Payer {price:.2f} {config.CURRENCY} ? (oui/non) : ").strip().lower() not in ("oui", "o", "y", "yes"):
+    if input(f"\n[Paiement simulé] Payer {config.format_price(formula, mode)} ? (oui/non) : ").strip().lower() not in ("oui", "o", "y", "yes"):
         print("Paiement non effectué. À bientôt !")
         return
     print("\n" + render(draw(theme, formula, name, question)))

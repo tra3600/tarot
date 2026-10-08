@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import config
 from .reading import FORMULAS
 
-CGV_VERSION = "2026-10-08-2"  # à changer à chaque modification du texte
+CGV_VERSION = "2026-10-08-3"  # à changer à chaque modification du texte
 
 
 def is_configured() -> bool:
@@ -19,12 +19,14 @@ def is_configured() -> bool:
     return not any(f.startswith("[") for f in fields)
 
 
-def _prices() -> str:
-    return "\n".join(f"  • {lbl} : {config.PRICES_CENTS[k] / 100:.2f} {config.CURRENCY} TTC"
-                     for k, (lbl, _) in FORMULAS.items())
+def _prices(mode: str) -> str:
+    return "\n".join(f"  • {lbl} : {config.format_price(k, mode)}" for k, (lbl, _) in FORMULAS.items())
 
 
-def cgv_text() -> str:
+def cgv_text(mode: str | None = None) -> str:
+    mode = mode or config.payment_mode()
+    stars_note = (" Le prix est exprimé en Étoiles Telegram : leur équivalent en euros TTC est affiché par Telegram "
+                  "au moment de l'achat des Étoiles." if mode == "stars" else "")
     return f"""CONDITIONS GÉNÉRALES DE VENTE (version {CGV_VERSION})
 
 1. Vendeur
@@ -36,8 +38,8 @@ Tirage de Tarot de Marseille personnalisé, livré sous forme de texte dans cett
 psychologique, ni une promesse de résultat. Le service est réservé aux personnes majeures.
 
 3. Prix
-{_prices()}
-Le prix est payable en une fois, avant la livraison, par le moyen de paiement proposé par Telegram.
+{_prices(mode)}
+Le prix est payable en une fois, avant la livraison, par le moyen de paiement proposé par Telegram.{stars_note}
 
 4. Livraison
 Le tirage est livré immédiatement après confirmation du paiement.
@@ -49,7 +51,7 @@ votre droit de rétractation (art. L221-28, 13° du Code de la consommation).
 
 6. Problème de livraison
 Si vous avez payé et n'avez pas reçu votre tirage, ou si une erreur technique s'est produite, écrivez à \
-{config.BUSINESS_EMAIL} : nous livrons à nouveau le tirage ou nous remboursons.
+{config.BUSINESS_EMAIL} : nous livrons à nouveau le tirage ou nous remboursons (en Étoiles Telegram si le paiement a été fait en Étoiles).
 
 7. Données personnelles
 Votre identifiant Telegram, votre prénom et votre question sont conservés pour fournir le service et prouver la vente. \
@@ -63,7 +65,8 @@ En cas de litige, vous pouvez recourir gratuitement au médiateur de la consomma
 Les présentes CGV sont soumises au droit français."""
 
 
-def consent_prompt(price_cents: int) -> str:
-    return (f"Avant de payer ({price_cents / 100:.2f} {config.CURRENCY} TTC), merci de lire les CGV (/cgv).\n\n"
+def consent_prompt(formula: str, mode: str | None = None) -> str:
+    price = config.format_price(formula, mode or config.payment_mode())
+    return (f"Avant de payer ({price}), merci de lire les CGV (/cgv).\n\n"
             "En cliquant sur « J'accepte », vous confirmez : avoir 18 ans ou plus, accepter les CGV, "
             "demander la livraison immédiate du tirage et renoncer à votre droit de rétractation.")
