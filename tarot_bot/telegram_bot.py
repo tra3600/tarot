@@ -98,7 +98,10 @@ class Bot:
 
     def on_callback(self, q):
         chat_id, user_id, data = q["message"]["chat"]["id"], q["from"]["id"], q.get("data", "")
-        self.api.call("answerCallbackQuery", callback_query_id=q["id"])
+        try:  # simple accusé de réception : il échoue si le clic est trop ancien et ne doit rien bloquer
+            self.api.call("answerCallbackQuery", callback_query_id=q["id"])
+        except urllib.error.HTTPError:
+            pass
         if data.startswith("t:") and data[2:] in THEMES:
             self.sessions[user_id] = {"step": "formula", "theme": data[2:]}
             rows = [[(f"{lbl} — {config.PRICES_CENTS[k] / 100:.2f} {config.CURRENCY}", f"f:{k}")]

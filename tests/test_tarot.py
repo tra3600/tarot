@@ -163,6 +163,20 @@ class BotTests(unittest.TestCase):
         bot.handle(cb(1, "del:no"))
         self.assertEqual(db.get_order(1)["name"], "Ana")
 
+    def test_stale_callback_ack_does_not_block(self):
+        import urllib.error
+
+        class StaleAckApi(FakeApi):
+            def call(self, method, **params):
+                if method == "answerCallbackQuery":
+                    raise urllib.error.HTTPError("u", 400, "query is too old", {}, None)
+                return super().call(method, **params)
+
+        api = StaleAckApi()
+        bot = Bot(api, Storage(), demo=True)
+        bot.handle(cb(1, "t:amour"))
+        self.assertTrue(any("Choisissez votre formule" in t for t in api.sent()))
+
     def test_wrong_amount_or_user_refused(self):
         api, db, bot = self.flow(demo=False)
         bot.handle({"pre_checkout_query": {"id": "9", "invoice_payload": "1", "from": {"id": 2},
