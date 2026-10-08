@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from tarot_bot import config, legal
+from tarot_bot import config, images, legal
 from tarot_bot.cards import DECK, THEMES
 from tarot_bot.minors import MINORS
 from tarot_bot.reading import FORMULAS, FULL_DECK, POSITIONS, draw, render
@@ -16,6 +16,9 @@ class FakeApi:
     def call(self, method, **params):
         self.calls.append((method, params))
         return True
+
+    def send_photo(self, chat_id, jpeg):
+        self.calls.append(("sendPhoto", {"chat_id": chat_id, "size": len(jpeg)}))
 
     def sent(self):
         return [p["text"] for m, p in self.calls if m == "sendMessage"]
@@ -47,6 +50,46 @@ class MinorTests(unittest.TestCase):
             seen |= {d.card.suit for d in draw("amour", "complet").cards}
         self.assertIn("Coupes", seen)
         self.assertTrue(all(not d.card.suit for d in draw("amour", "complet", full_deck=False).cards))
+
+
+@unittest.skipUnless(images.available(), "Pillow non installé")
+class ImageTests(unittest.TestCase):
+    def test_scans_cover_majors_and_most_minors(self):
+        with_scan = [c for c in FULL_DECK if images.has_scan(c)]
+        self.assertEqual(len(with_scan), 66)
+        self.assertTrue(all(images.has_scan(c) for c in DECK))  # les 22 majeurs sont tous illustrés
+
+    def test_render_all_formulas_and_missing_scan_placeholder(self):
+        from PIL import Image
+        import io
+        missing = next(c for c in FULL_DECK if not images.has_scan(c))
+        for formula, (_, idx) in FORMULAS.items():
+            r = draw("amour", formula, "Ana")
+            data = images.render_spread(r)
+            self.assertTrue(data.startswith(b"\xff\xd8"))
+            self.assertGreater(Image.open(io.BytesIO(data)).width, 300)
+        from tarot_bot.reading import DrawnCard, Reading
+        r = Reading("amour", "trio", "", "", tuple(DrawnCard("p", c, rev) for c, rev in
+                                                   ((missing, False), (DECK[0], True), (DECK[1], False))))
+        self.assertTrue(images.render_spread(r))
+
+    def test_bot_sends_photo_before_text_and_survives_photo_failure(self):
+        api, db = FakeApi(), Storage()
+        bot = Bot(api, db, "demo")
+        for u in (msg(1, "/start"), cb(1, "t:amour"), cb(1, "f:flash"), msg(1, "Q ?"), cb(1, "cgv:ok")):
+            bot.handle(u)
+        methods = [m for m, _ in api.calls]
+        self.assertLess(methods.index("sendPhoto"), max(i for i, m in enumerate(methods) if m == "sendMessage"))
+
+        class BrokenPhotoApi(FakeApi):
+            def send_photo(self, chat_id, jpeg):
+                raise RuntimeError("réseau")
+
+        api2 = BrokenPhotoApi()
+        bot2 = Bot(api2, Storage(), "demo")
+        for u in (msg(2, "/start"), cb(2, "t:amour"), cb(2, "f:flash"), msg(2, "Q ?"), cb(2, "cgv:ok")):
+            bot2.handle(u)
+        self.assertTrue(any("Synthèse" in t for t in api2.sent()))
 
 
 class DrawTests(unittest.TestCase):

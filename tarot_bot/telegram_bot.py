@@ -13,8 +13,9 @@ import logging
 import time
 import urllib.error
 import urllib.request
+import uuid
 
-from . import config, legal
+from . import config, images, legal
 from .cards import THEMES
 from .reading import DISCLAIMER, FORMULAS, draw, render
 from .storage import Storage
@@ -37,6 +38,22 @@ class Api:
                 return json.load(r)["result"]
         except urllib.error.HTTPError as e:
             log.error("API %s: %s %s", method, e.code, e.read()[:200])
+            raise
+
+    def send_photo(self, chat_id, jpeg: bytes):
+        """Envoie une image JPEG (multipart/form-data)."""
+        boundary = uuid.uuid4().hex
+        parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{chat_id}\r\n').encode(),
+                 (f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="tirage.jpg"\r\n'
+                  'Content-Type: image/jpeg\r\n\r\n').encode(), jpeg,
+                 f'\r\n--{boundary}--\r\n'.encode()]
+        req = urllib.request.Request(self.base + "sendPhoto", data=b"".join(parts),
+                                     headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        try:
+            with urllib.request.urlopen(req, timeout=70) as r:
+                return json.load(r)["result"]
+        except urllib.error.HTTPError as e:
+            log.error("API sendPhoto: %s %s", e.code, e.read()[:200])
             raise
 
 
@@ -173,6 +190,12 @@ class Bot:
         text = render(reading)
         if not self.db.mark_paid(order_id, charge_id, text):
             return  # déjà livrée : pas de double tirage
+        photo = images.render_spread(reading) if config.SEND_IMAGES else None
+        if photo:
+            try:
+                self.api.send_photo(chat_id, photo)
+            except Exception:  # l'image est un plus : le tirage (texte) est livré quoi qu'il arrive
+                log.exception("Envoi de l'image du tirage impossible")
         self.send(chat_id, text)
         self.send(chat_id, "Merci ! Tapez /start pour un nouveau tirage.")
 
