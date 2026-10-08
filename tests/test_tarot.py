@@ -143,6 +143,26 @@ class BotTests(unittest.TestCase):
             "total_amount": config.PRICES_CENTS["flash"], "currency": config.CURRENCY}})
         self.assertFalse(api.calls[-1][1]["ok"])
 
+    def test_erasure_command(self):
+        api, db, bot = self.flow(demo=True)       # commande 1 payée (démo)
+        db.create_order(1, "amour", "flash", "Ana", "Q2", 299, "EUR", cgv_version="v")  # commande en attente
+        db.create_order(2, "amour", "flash", "Bob", "Q3", 299, "EUR", cgv_version="v")  # autre utilisateur
+        bot.handle(msg(1, "/supprimer"))
+        self.assertTrue(any(m == "sendMessage" and "Confirmer" in p["text"] for m, p in api.calls))
+        self.assertIsNotNone(db.get_order(1)["result"])  # rien n'est effacé avant confirmation
+        bot.handle(cb(1, "del:ok"))
+        paid = db.get_order(1)
+        self.assertEqual((paid["name"], paid["question"], paid["result"], paid["user_id"]), ("", "", None, 0))
+        self.assertEqual(paid["status"], "paid")
+        self.assertEqual(paid["amount_cents"], config.PRICES_CENTS["trio"])
+        self.assertIsNone(db.get_order(2))        # non payée : supprimée
+        self.assertEqual(db.get_order(3)["name"], "Bob")  # autre utilisateur intact
+
+    def test_erasure_cancel_keeps_data(self):
+        api, db, bot = self.flow(demo=True)
+        bot.handle(cb(1, "del:no"))
+        self.assertEqual(db.get_order(1)["name"], "Ana")
+
     def test_wrong_amount_or_user_refused(self):
         api, db, bot = self.flow(demo=False)
         bot.handle({"pre_checkout_query": {"id": "9", "invoice_payload": "1", "from": {"id": 2},

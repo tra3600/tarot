@@ -76,8 +76,14 @@ class Bot:
             return self.show_themes(chat_id, user_id)
         if text.startswith("/cgv"):
             return self.send(chat_id, legal.cgv_text())
+        if text.startswith("/supprimer"):
+            return self.send(chat_id, "Cela efface votre prénom, vos questions et vos tirages de nos données. "
+                             "Seules les informations de paiement (montant, date, référence) sont conservées "
+                             "sans votre nom, comme l'exige la comptabilité. Confirmer ?",
+                             reply_markup=_keyboard([[("🗑 Oui, tout supprimer", "del:ok")],
+                                                     [("Annuler", "del:no")]]))
         if text.startswith("/aide"):
-            return self.send(chat_id, "Tapez /start pour un nouveau tirage, /cgv pour les conditions de vente.\n\n"
+            return self.send(chat_id, "Tapez /start pour un nouveau tirage, /cgv pour les conditions de vente, /supprimer pour effacer vos données.\n\n"
                              + DISCLAIMER)
         s = self.sessions.get(user_id)
         if s and s.get("step") == "question":
@@ -99,6 +105,13 @@ class Bot:
                     for k, (lbl, _) in FORMULAS.items()]
             self.send(chat_id, f"Thème : {THEMES[data[2:]]}. Choisissez votre formule :",
                       reply_markup=_keyboard(rows))
+        elif data in ("del:ok", "del:no"):
+            if data == "del:ok":
+                self.sessions.pop(user_id, None)
+                n = self.db.erase_user(user_id)
+                self.send(chat_id, f"✅ Vos données ont été effacées ({n} commande(s) concernée(s)).")
+            else:
+                self.send(chat_id, "Suppression annulée.")
         elif data.startswith("cgv:"):
             s = self.sessions.get(user_id)
             if data == "cgv:read":
