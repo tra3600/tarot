@@ -18,6 +18,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 # Jeton fourni par BotFather (Stripe, etc.). Vide = mode démo sans vrai paiement.
 PROVIDER_TOKEN = os.getenv("PAYMENT_PROVIDER_TOKEN", "")
 PAYMENT_MODE = os.getenv("PAYMENT_MODE", "")  # demo | stars | provider ; vide = déduit du jeton de paiement
+SEND_IMAGES = os.getenv("SEND_IMAGES", "1") != "0"  # image des cartes tirées (nécessite Pillow)
 DB_PATH = os.getenv("TAROT_DB", "tarot.db")
 
 # Identité du vendeur, affichée dans les CGV (à renseigner avant la mise en ligne).
