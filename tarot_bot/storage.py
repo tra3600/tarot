@@ -43,3 +43,15 @@ class Storage:
             (charge_id, result, order_id))
         self.db.commit()
         return cur.rowcount == 1
+
+    def erase_user(self, user_id: int) -> int:
+        """Droit à l'effacement. Commandes non payées : supprimées. Commandes payées : prénom, question et texte du
+        tirage effacés, identifiant Telegram anonymisé (0) ; on garde montant, date, référence de paiement et preuve
+        de consentement, conservés pour des raisons comptables et de preuve. Retourne le nombre de commandes touchées."""
+        cur = self.db.execute("DELETE FROM orders WHERE user_id=? AND status!='paid'", (user_id,))
+        n = cur.rowcount
+        cur = self.db.execute(
+            "UPDATE orders SET name='', question='', result=NULL, user_id=0 WHERE user_id=? AND status='paid'",
+            (user_id,))
+        self.db.commit()
+        return n + cur.rowcount

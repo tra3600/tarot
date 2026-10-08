@@ -36,6 +36,11 @@ version des CGV et l'horodatage sont enregistrés dans la commande. `/cgv` affic
 Avec des paiements réels, le bot refuse de démarrer tant que `BUSINESS_NAME`, `BUSINESS_SIRET`, `BUSINESS_ADDRESS`,
 `BUSINESS_EMAIL` et `MEDIATOR` ne sont pas renseignés. **Le texte est un modèle : faites-le relire par un juriste.**
 
+### Suppression des données
+`/supprimer` (avec confirmation) efface le prénom, les questions et les tirages de l'utilisateur et supprime ses commandes non
+payées. Les commandes payées restent, anonymisées (identifiant Telegram remplacé par 0) : montant, date, référence de paiement et
+preuve d'acceptation des CGV sont conservés pour la comptabilité. Ce comportement est annoncé dans les CGV (§7).
+
 Prix (centimes) réglables : `PRICE_FLASH_CENTS`, `PRICE_TRIO_CENTS`, `PRICE_COMPLET_CENTS`, `CURRENCY`, `TAROT_DB`.
 
 ## À faire avant la mise en ligne

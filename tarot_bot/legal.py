@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import config
 from .reading import FORMULAS
 
-CGV_VERSION = "2026-10-08"
+CGV_VERSION = "2026-10-08-2"  # à changer à chaque modification du texte
 
 
 def is_configured() -> bool:
@@ -53,7 +53,9 @@ Si vous avez payé et n'avez pas reçu votre tirage, ou si une erreur technique 
 
 7. Données personnelles
 Votre identifiant Telegram, votre prénom et votre question sont conservés pour fournir le service et prouver la vente. \
-Vous pouvez demander leur suppression à {config.BUSINESS_EMAIL}. Aucune donnée de carte bancaire n'est vue ni \
+Vous pouvez les effacer à tout moment avec la commande /supprimer (ou en écrivant à {config.BUSINESS_EMAIL}). \
+Seules les informations de la transaction (montant, date, référence de paiement, preuve d'acceptation des CGV) \
+sont conservées, sans votre prénom ni votre question, pour les obligations comptables et la preuve de la vente. Aucune donnée de carte bancaire n'est vue ni \
 conservée par le service : le paiement est traité par le prestataire de paiement.
 
 8. Médiation et droit applicable
