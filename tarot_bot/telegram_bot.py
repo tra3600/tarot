@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import config
+from . import config, legal
 from .cards import THEMES
 from .reading import DISCLAIMER, FORMULAS, draw, render
 from .storage import Storage
@@ -74,13 +74,20 @@ class Bot:
         text = (m.get("text") or "").strip()
         if text.startswith(("/start", "/tirage")):
             return self.show_themes(chat_id, user_id)
+        if text.startswith("/cgv"):
+            return self.send(chat_id, legal.cgv_text())
         if text.startswith("/aide"):
-            return self.send(chat_id, "Tapez /start pour un nouveau tirage.\n\n" + DISCLAIMER)
+            return self.send(chat_id, "Tapez /start pour un nouveau tirage, /cgv pour les conditions de vente.\n\n"
+                             + DISCLAIMER)
         s = self.sessions.get(user_id)
         if s and s.get("step") == "question":
             question = "" if text.lower() in ("non", "-", "aucune") else text[:MAX_QUESTION]
             name = (m["from"].get("first_name") or "")[:40]
-            return self.checkout(chat_id, user_id, s["theme"], s["formula"], name, question)
+            s.update(step="cgv", name=name, question=question)
+            return self.send(chat_id, legal.consent_prompt(config.PRICES_CENTS[s["formula"]]),
+                             reply_markup=_keyboard([[("✅ J'accepte les CGV et je paie", "cgv:ok")],
+                                                     [("📄 Lire les CGV", "cgv:read")],
+                                                     [("❌ Annuler", "cgv:no")]]))
         self.send(chat_id, "Tapez /start pour commencer un tirage.")
 
     def on_callback(self, q):
@@ -92,6 +99,17 @@ class Bot:
                     for k, (lbl, _) in FORMULAS.items()]
             self.send(chat_id, f"Thème : {THEMES[data[2:]]}. Choisissez votre formule :",
                       reply_markup=_keyboard(rows))
+        elif data.startswith("cgv:"):
+            s = self.sessions.get(user_id)
+            if data == "cgv:read":
+                self.send(chat_id, legal.cgv_text())
+            elif not s or s.get("step") != "cgv":
+                self.show_themes(chat_id, user_id)
+            elif data == "cgv:ok":
+                self.checkout(chat_id, user_id, s["theme"], s["formula"], s["name"], s["question"])
+            else:
+                self.sessions.pop(user_id, None)
+                self.send(chat_id, "Commande annulée, rien n'a été débité. Tapez /start pour recommencer.")
         elif data.startswith("f:") and data[2:] in FORMULAS:
             s = self.sessions.get(user_id)
             if not s or "theme" not in s:
@@ -102,7 +120,8 @@ class Bot:
     # -- paiement ---------------------------------------------------------
     def checkout(self, chat_id, user_id, theme, formula, name, question):
         amount = config.PRICES_CENTS[formula]
-        order_id = self.db.create_order(user_id, theme, formula, name, question, amount, config.CURRENCY)
+        order_id = self.db.create_order(user_id, theme, formula, name, question, amount, config.CURRENCY,
+                                        cgv_version=legal.CGV_VERSION)
         self.sessions.pop(user_id, None)
         if self.demo:
             self.send(chat_id, "⚠️ Mode démo : paiement simulé.")
@@ -115,7 +134,7 @@ class Bot:
 
     def on_pre_checkout(self, q):
         order = self.db.get_order(int(q["invoice_payload"])) if q["invoice_payload"].isdigit() else None
-        ok = bool(order and order["status"] == "pending" and order["user_id"] == q["from"]["id"]
+        ok = bool(order and order["status"] == "pending" and order["cgv_version"] and order["user_id"] == q["from"]["id"]
                   and order["amount_cents"] == q["total_amount"] and order["currency"] == q["currency"])
         self.api.call("answerPreCheckoutQuery", pre_checkout_query_id=q["id"], ok=ok,
                       **({} if ok else {"error_message": "Commande invalide ou déjà payée."}))
@@ -161,7 +180,11 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if not config.BOT_TOKEN:
         raise SystemExit("Définissez TELEGRAM_BOT_TOKEN (voir README).")
-    Bot(Api(config.BOT_TOKEN), Storage(config.DB_PATH), demo=not config.PROVIDER_TOKEN).run()
+    demo = not config.PROVIDER_TOKEN
+    if not demo and not legal.is_configured():
+        raise SystemExit("Renseignez BUSINESS_NAME, BUSINESS_SIRET, BUSINESS_ADDRESS, BUSINESS_EMAIL et MEDIATOR "
+                         "(mentions obligatoires des CGV) avant d'activer les paiements réels.")
+    Bot(Api(config.BOT_TOKEN), Storage(config.DB_PATH), demo=demo).run()
 
 
 if __name__ == "__main__":

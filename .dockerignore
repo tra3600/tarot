@@ -1,0 +1,6 @@
+.git
+legacy
+tests
+*.db
+__pycache__
+.env
