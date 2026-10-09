@@ -9,9 +9,9 @@ PRICES_CENTS = {
 }
 # Prix en Étoiles Telegram (Stars, devise XTR), utilisés quand PAYMENT_MODE=stars.
 PRICES_STARS = {
-    "flash": int(os.getenv("PRICE_FLASH_STARS", "150")),
-    "trio": int(os.getenv("PRICE_TRIO_STARS", "300")),
-    "complet": int(os.getenv("PRICE_COMPLET_STARS", "500")),
+    "flash": int(os.getenv("PRICE_FLASH_STARS", "75")),
+    "trio": int(os.getenv("PRICE_TRIO_STARS", "180")),
+    "complet": int(os.getenv("PRICE_COMPLET_STARS", "330")),
 }
 CURRENCY = os.getenv("CURRENCY", "EUR")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
