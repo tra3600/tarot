@@ -61,7 +61,7 @@ export PAYMENT_MODE=stars
 export BUSINESS_NAME=... BUSINESS_SIRET=... BUSINESS_ADDRESS=... BUSINESS_EMAIL=... MEDIATOR=...
 python -m tarot_bot.telegram_bot
 ```
-Prix par défaut : 150 / 300 / 500 Étoiles (`PRICE_FLASH_STARS`, `PRICE_TRIO_STARS`, `PRICE_COMPLET_STARS`). Les Étoiles reçues
+Prix par défaut : 75 / 180 / 330 Étoiles (Flash / Trio / Grand tirage) (`PRICE_FLASH_STARS`, `PRICE_TRIO_STARS`, `PRICE_COMPLET_STARS`). Les Étoiles reçues
 se retirent via Fragment (TON) selon les conditions de Telegram ; vérifiez leur valeur en euros et les règles en vigueur.
 Modes : `demo` (simulé), `stars`, `provider` (fournisseur BotFather + `PAYMENT_PROVIDER_TOKEN`).
 
